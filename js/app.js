@@ -559,6 +559,27 @@ const KrishiApp = {
 
     this.saveCurrentReading();
     this.saveHistory();
+
+    // Push to Google Firebase Firestore if authenticated
+    if (window.FirebaseService && window.FirebaseService.currentUser) {
+      window.FirebaseService.saveSoilReading({
+        ph,
+        moisture,
+        healthScore,
+        battery,
+        plot: plotName,
+        status: ph < 5.8 ? 'Acidic' : (ph > 7.5 ? 'Alkaline' : 'Optimal'),
+        district: this.profile.district,
+        block: this.profile.block,
+        village: this.profile.village
+      }).then(() => {
+        this.currentReading.synced = true;
+        this.updateNetworkBadge();
+      }).catch(err => {
+        console.warn("[Firebase] Could not sync reading to Firestore:", err);
+      });
+    }
+
     this.renderSoilReport();
     this.renderYojanas();
     this.renderHistory();
@@ -805,8 +826,122 @@ _Sent via KrishiSync Mobile App (Offline BLE Wand Ecosystem)_`;
         this.renderSoilReport();
         this.renderYojanas();
         document.getElementById('profileEditModal').classList.add('hidden');
+
+        // Sync updated profile to Firestore if logged in
+        if (window.FirebaseService && window.FirebaseService.currentUser) {
+          window.FirebaseService.saveUserProfile({
+            name: this.profile.name,
+            landSize: this.profile.landSize,
+            crop: this.profile.crop,
+            district: this.profile.district
+          });
+        }
+
         alert('✅ Profile updated successfully!');
       });
+    }
+  },
+
+  // Google Authentication & Firebase Handlers
+  async handleGoogleSignIn() {
+    if (!window.FirebaseService) {
+      alert("Firebase service is loading. Please wait a moment.");
+      return;
+    }
+    if (!window.FirebaseService.isInitialized) {
+      document.getElementById('firebaseConfigModal').classList.remove('hidden');
+      alert("⚠️ Please enter your Firebase Project Configuration keys to enable Google Login & Cloud Firestore.");
+      return;
+    }
+    try {
+      const user = await window.FirebaseService.loginWithGoogle();
+      alert(`✅ Welcome ${user.displayName || 'Farmer'}! Signed in with Google successfully.`);
+    } catch (err) {
+      console.error("Sign-in error:", err);
+      if (err.code === "auth/unauthorized-domain") {
+        alert("⚠️ Unauthorized Domain!\nPlease add your current domain (e.g. anishachatterjee674-cmyk.github.io or localhost) to Firebase Console > Authentication > Settings > Authorized domains.");
+      } else {
+        alert("Sign-in error: " + err.message);
+      }
+    }
+  },
+
+  async handleSignOut() {
+    if (window.FirebaseService) {
+      await window.FirebaseService.logout();
+      alert("Signed out successfully.");
+    }
+  },
+
+  async onFirebaseAuthStateChanged(user) {
+    const signInBtn = document.getElementById('googleSignInBtn');
+    const profileBadge = document.getElementById('userProfileBadge');
+    const avatarImg = document.getElementById('userAvatarImg');
+    const displayName = document.getElementById('userDisplayName');
+
+    if (user) {
+      if (signInBtn) signInBtn.classList.add('hidden');
+      if (profileBadge) profileBadge.classList.remove('hidden');
+      if (avatarImg) avatarImg.src = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
+      if (displayName) displayName.innerText = user.displayName || user.email || 'Farmer';
+
+      // Load user profile from Firestore
+      const remoteProfile = await window.FirebaseService.getUserProfile();
+      if (remoteProfile) {
+        this.profile.name = remoteProfile.name || this.profile.name;
+        this.profile.landSize = remoteProfile.landSize || this.profile.landSize;
+        this.profile.crop = remoteProfile.crop || this.profile.crop;
+        this.profile.district = remoteProfile.district || this.profile.district;
+        this.profile.village = remoteProfile.village || this.profile.village;
+        this.profile.block = remoteProfile.block || this.profile.block;
+        this.renderFarmerProfile();
+      }
+
+      // Load user's private readings from Firestore
+      const remoteReadings = await window.FirebaseService.getUserReadings();
+      if (remoteReadings && remoteReadings.length > 0) {
+        this.history = remoteReadings;
+        this.saveHistory();
+        this.renderHistory();
+      }
+
+      this.currentReading.synced = true;
+      this.updateNetworkBadge();
+    } else {
+      if (signInBtn) signInBtn.classList.remove('hidden');
+      if (profileBadge) profileBadge.classList.add('hidden');
+      this.updateNetworkBadge();
+    }
+  },
+
+  saveFirebaseKeysFromModal() {
+    let config = null;
+    const jsonInput = document.getElementById('fbConfigJson').value.trim();
+    if (jsonInput) {
+      try {
+        config = JSON.parse(jsonInput);
+      } catch (e) {
+        alert("Invalid JSON format in Firebase Config box. Please check syntax.");
+        return;
+      }
+    } else {
+      config = {
+        apiKey: document.getElementById('fbApiKey').value.trim(),
+        projectId: document.getElementById('fbProjectId').value.trim(),
+        authDomain: document.getElementById('fbAuthDomain').value.trim(),
+        appId: document.getElementById('fbAppId').value.trim()
+      };
+    }
+
+    if (!config.apiKey || !config.projectId) {
+      alert("Please enter at least an API Key and Project ID.");
+      return;
+    }
+
+    if (window.FirebaseService) {
+      window.FirebaseService.saveConfig(config);
+      document.getElementById('firebaseConfigModal').classList.add('hidden');
+      alert(`✅ Firebase connected to project "${config.projectId}"! You can now sign in with Google.`);
     }
   }
 };
