@@ -814,7 +814,7 @@
         </div>
 
         <div class="pt-2 flex items-center justify-between">
-          <button onclick="KrishiApp.saveFirebaseKeysFromModal()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow transition-all">
+          <button id="saveFbConfigBtn" onclick="window.saveFirebaseConfigDirect()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow transition-all active:scale-95 cursor-pointer">
             Save & Connect Firebase 🔥
           </button>
           <button onclick="document.getElementById('firebaseConfigModal').classList.add('hidden')" class="px-3 py-2 text-slate-500 hover:text-slate-800">
@@ -832,18 +832,173 @@
   <script src="js/heatmap.js"></script>
   <script src="js/app.js"></script>
 
-  <!-- Firebase Integration Bridge (ES Module) -->
+  <!-- Self-Contained Firebase Service (Loads directly from Google CDN - Zero local file dependencies) -->
   <script type="module">
-    import { FirebaseService } from './js/firebase-service.js';
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+      getAuth, 
+      GoogleAuthProvider, 
+      signInWithPopup, 
+      signOut, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      setDoc, 
+      getDoc, 
+      collection, 
+      addDoc, 
+      getDocs, 
+      query, 
+      orderBy, 
+      limit, 
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const FirebaseService = {
+      app: null,
+      auth: null,
+      db: null,
+      currentUser: null,
+      isInitialized: false,
+
+      init(customConfig = null) {
+        let config = customConfig;
+        if (!config) {
+          const saved = localStorage.getItem("krishisync_firebase_config");
+          if (saved) {
+            try { config = JSON.parse(saved); } catch (e) {}
+          }
+        }
+
+        if (!config || !config.apiKey || config.apiKey === "YOUR_API_KEY") {
+          console.warn("[Firebase] No config found yet. Please enter keys in the setup modal.");
+          this.isInitialized = false;
+          return false;
+        }
+
+        try {
+          this.app = initializeApp(config);
+          this.auth = getAuth(this.app);
+          this.db = getFirestore(this.app);
+          this.isInitialized = true;
+          console.log("[Firebase] Successfully connected to project:", config.projectId);
+
+          // Listen for Auth changes
+          onAuthStateChanged(this.auth, (user) => {
+            this.currentUser = user;
+            if (window.KrishiApp && window.KrishiApp.onFirebaseAuthStateChanged) {
+              window.KrishiApp.onFirebaseAuthStateChanged(user);
+            }
+          });
+
+          return true;
+        } catch (err) {
+          console.error("[Firebase] Init error:", err);
+          return false;
+        }
+      },
+
+      async loginWithGoogle() {
+        if (!this.isInitialized || !this.auth) {
+          throw new Error("Please enter your Firebase config keys first by clicking the 🔥 icon.");
+        }
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        const result = await signInWithPopup(this.auth, provider);
+        this.currentUser = result.user;
+        return result.user;
+      },
+
+      async logout() {
+        if (this.auth) {
+          await signOut(this.auth);
+          this.currentUser = null;
+        }
+      },
+
+      async saveSoilReading(reading) {
+        if (!this.db || !this.currentUser) return null;
+        const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
+        return await addDoc(readingsCol, {
+          ph: Number(reading.ph),
+          moisture: Number(reading.moisture),
+          healthScore: Number(reading.healthScore),
+          plot: reading.plot || "Main Field",
+          status: reading.status || "Tested",
+          timestamp: serverTimestamp(),
+          farmerUid: this.currentUser.uid
+        });
+      },
+
+      async getUserReadings() {
+        if (!this.db || !this.currentUser) return [];
+        const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
+        const q = query(readingsCol, orderBy("timestamp", "desc"), limit(20));
+        const snap = await getDocs(q);
+        const results = [];
+        snap.forEach(doc => {
+          const data = doc.data();
+          results.push({
+            id: doc.id,
+            ...data,
+            date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString("en-IN") : "Just now"
+          });
+        });
+        return results;
+      }
+    };
+
     window.FirebaseService = FirebaseService;
-    
-    // Auto-init with saved keys or default
-    const initialized = FirebaseService.init();
-    
-    // Listen to Auth State
-    FirebaseService.onAuth((user) => {
-      KrishiApp.onFirebaseAuthStateChanged(user);
-    });
+
+    // Direct global save function for the modal button
+    window.saveFirebaseConfigDirect = function() {
+      let config = null;
+      const jsonInput = document.getElementById('fbConfigJson')?.value?.trim();
+
+      if (jsonInput) {
+        try {
+          config = JSON.parse(jsonInput);
+        } catch (e) {
+          alert("Invalid JSON format in Firebase Config box. Please check syntax.");
+          return;
+        }
+      } else {
+        const apiKey = document.getElementById('fbApiKey')?.value?.trim();
+        const projectId = document.getElementById('fbProjectId')?.value?.trim();
+        const authDomain = document.getElementById('fbAuthDomain')?.value?.trim();
+        const appId = document.getElementById('fbAppId')?.value?.trim();
+
+        if (!apiKey || !projectId) {
+          alert("Please enter at least an API Key and Project ID.");
+          return;
+        }
+
+        config = {
+          apiKey,
+          projectId,
+          authDomain: authDomain || `${projectId}.firebaseapp.com`,
+          appId: appId || ""
+        };
+      }
+
+      // Save to localStorage
+      localStorage.setItem("krishisync_firebase_config", JSON.stringify(config));
+
+      // Initialize
+      const success = FirebaseService.init(config);
+      document.getElementById('firebaseConfigModal').classList.add('hidden');
+
+      if (success) {
+        alert(`✅ Connected to Firebase project "${config.projectId}"!\n\nYou can now click "Sign in with Google" in the top right.`);
+      } else {
+        alert(`✅ Keys saved! Please click "Sign in with Google" to test your connection.`);
+      }
+    };
+
+    // Auto-init on page load
+    FirebaseService.init();
   </script>
 
 </body>
