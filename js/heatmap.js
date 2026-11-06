@@ -224,10 +224,9 @@ const HeatmapEngine = {
         scrollWheelZoom: true
       });
 
-      // CartoDB Positron / OSM tiles
+      // OpenStreetMap clean free tiles (No API key required)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(this.mapInstance);
 
