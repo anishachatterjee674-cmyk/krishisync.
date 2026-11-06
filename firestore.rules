@@ -1,0 +1,227 @@
+rules_version = '2';
+
+// ===============================================================
+// KrishiSync - Cloud Firestore Security Rules
+// ===============================================================
+// Assumed Data Models:
+//
+// Collection: /users/{userId}
+// Document ID: Firebase Auth UID
+// Description: Private farmer profile containing contact info, land size, and village details.
+// Fields:
+//   - uid: string (required, 1-128 chars, matches request.auth.uid, immutable)
+//   - name: string (required, 1-100 chars)
+//   - email: string (optional, 1-100 chars, valid email format)
+//   - photoURL: string (optional, 0-500 chars, valid HTTP/HTTPS URL)
+//   - phone: string (optional, 0-25 chars)
+//   - landSize: number (optional, >= 0 and <= 100000 acres/hectares)
+//   - crop: string (optional, 1-100 chars)
+//   - district: string (optional, 1-100 chars)
+//   - block: string (optional, 1-100 chars)
+//   - village: string (optional, 1-100 chars)
+//   - createdAt: timestamp (optional, immutable once set)
+//   - lastLogin: timestamp (optional)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: /users/{userId}/readings/{readingId}
+// Document ID: Auto-generated document ID
+// Description: Private soil testing records for a specific farmer.
+// Fields:
+//   - ph: number (required, 0 <= ph <= 14)
+//   - moisture: number (required, 0 <= moisture <= 100 percentage)
+//   - healthScore: number (required, 0 <= healthScore <= 100 score)
+//   - timestamp: timestamp (required, immutable on update)
+//   - plot: string (optional, 1-100 chars)
+//   - status: string (optional, 1-50 chars)
+//   - battery: number (optional, 0-100)
+//   - farmerUid: string (optional, matches request.auth.uid, immutable)
+//
+// Collection: /public_telemetry/{telemetryId}
+// Document ID: Auto-generated document ID
+// Description: Anonymized village-level telemetry aggregate for Block Development Officers and macro heatmap analytics.
+// Fields:
+//   - ph: number (required, 0 <= ph <= 14)
+//   - moisture: number (required, 0 <= moisture <= 100 percentage)
+//   - healthScore: number (required, 0 <= healthScore <= 100 score)
+//   - timestamp: timestamp (required)
+//   - district: string (optional, 1-100 chars)
+//   - block: string (optional, 1-100 chars)
+//   - village: string (optional, 1-100 chars)
+//   (NO PII permitted: no uid, name, email, or phone)
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Root Default Deny
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated via Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the caller is the owner matching the path parameter
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate required fields exist in request payload
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Enforce strict schema with no extraneous fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Verify specified immutable fields did not change on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string &&
+             email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Validate URL format (HTTP or HTTPS)
+    function isValidUrl(url) {
+      return url is string &&
+             (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Domain validator for /users/{userId} profile documents
+    function isValidUserProfile(data) {
+      return hasOnlyAllowedFields([
+               'uid', 'name', 'email', 'photoURL', 'phone', 
+               'landSize', 'crop', 'district', 'block', 'village', 
+               'createdAt', 'lastLogin', 'updatedAt'
+             ])
+             && hasRequiredFields(['uid', 'name'])
+             && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+             && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+             && (!('email' in data) || (data.email is string && (data.email == '' || isValidEmail(data.email)) && data.email.size() <= 100))
+             && (!('photoURL' in data) || (data.photoURL is string && (data.photoURL == '' || isValidUrl(data.photoURL)) && data.photoURL.size() <= 500))
+             && (!('phone' in data) || (data.phone is string && data.phone.size() <= 25))
+             && (!('landSize' in data) || (data.landSize is number && data.landSize >= 0 && data.landSize <= 100000))
+             && (!('crop' in data) || (data.crop is string && data.crop.size() <= 100))
+             && (!('district' in data) || (data.district is string && data.district.size() <= 100))
+             && (!('block' in data) || (data.block is string && data.block.size() <= 100))
+             && (!('village' in data) || (data.village is string && data.village.size() <= 100))
+             && (!('createdAt' in data) || data.createdAt is timestamp)
+             && (!('lastLogin' in data) || data.lastLogin is timestamp)
+             && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Domain validator for /users/{userId}/readings/{readingId} private readings
+    function isValidSoilReading(data) {
+      return hasOnlyAllowedFields([
+               'ph', 'moisture', 'healthScore', 'timestamp', 
+               'plot', 'status', 'battery', 'farmerUid'
+             ])
+             && hasRequiredFields(['ph', 'moisture', 'healthScore', 'timestamp'])
+             && data.ph is number && data.ph >= 0 && data.ph <= 14
+             && data.moisture is number && data.moisture >= 0 && data.moisture <= 100
+             && data.healthScore is number && data.healthScore >= 0 && data.healthScore <= 100
+             && data.timestamp is timestamp
+             && (!('plot' in data) || (data.plot is string && data.plot.size() <= 100))
+             && (!('status' in data) || (data.status is string && data.status.size() <= 50))
+             && (!('battery' in data) || (data.battery is number && data.battery >= 0 && data.battery <= 100))
+             && (!('farmerUid' in data) || (data.farmerUid is string && data.farmerUid.size() <= 128));
+    }
+
+    // Domain validator for /public_telemetry/{telemetryId} aggregate heatmap
+    function isValidPublicTelemetry(data) {
+      return hasOnlyAllowedFields([
+               'ph', 'moisture', 'healthScore', 'timestamp', 
+               'district', 'block', 'village'
+             ])
+             && hasRequiredFields(['ph', 'moisture', 'healthScore', 'timestamp'])
+             && data.ph is number && data.ph >= 0 && data.ph <= 14
+             && data.moisture is number && data.moisture >= 0 && data.moisture <= 100
+             && data.healthScore is number && data.healthScore >= 0 && data.healthScore <= 100
+             && data.timestamp is timestamp
+             && (!('district' in data) || (data.district is string && data.district.size() <= 100))
+             && (!('block' in data) || (data.block is string && data.block.size() <= 100))
+             && (!('village' in data) || (data.village is string && data.village.size() <= 100));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // ---------------------------------------------------------------
+    // 1. User Profile Collection (/users/{userId})
+    // ---------------------------------------------------------------
+    match /users/{userId} {
+      // PII Protection: Read is strictly restricted to the account owner
+      allow read: if isOwner(userId);
+
+      // Create: Authenticated owner only, valid schema, uid must match route and auth
+      allow create: if isOwner(userId)
+                    && isValidUserProfile(request.resource.data)
+                    && request.resource.data.uid == userId;
+
+      // Update: Authenticated owner only, valid schema, immutable uid and createdAt
+      allow update: if isOwner(userId)
+                    && isValidUserProfile(request.resource.data)
+                    && request.resource.data.uid == resource.data.uid
+                    && areImmutableFieldsUnchanged(['createdAt']);
+
+      // Delete: Authenticated owner only
+      allow delete: if isOwner(userId);
+
+      // -------------------------------------------------------------
+      // 2. Private Soil Readings Subcollection (/users/{userId}/readings/{readingId})
+      // -------------------------------------------------------------
+      match /readings/{readingId} {
+        // Read: Only the authenticated owner can read their historical readings
+        allow read: if isOwner(userId);
+
+        // Create: Only the authenticated owner, valid sensor schema
+        allow create: if isOwner(userId)
+                      && isValidSoilReading(request.resource.data)
+                      && (!('farmerUid' in request.resource.data) || request.resource.data.farmerUid == userId);
+
+        // Update: Only the authenticated owner; sensor timestamp and farmerUid are immutable
+        allow update: if isOwner(userId)
+                      && isValidSoilReading(request.resource.data)
+                      && areImmutableFieldsUnchanged(['timestamp', 'farmerUid']);
+
+        // Delete: Only the authenticated owner can delete their reading
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // 3. Public Telemetry Collection (/public_telemetry/{telemetryId})
+    // Used by Block Officers and District Heatmap for macro-level soil monitoring
+    // ---------------------------------------------------------------
+    match /public_telemetry/{telemetryId} {
+      // Read: Any authenticated user (or block officer) can query heatmap telemetry
+      allow read: if isAuthenticated();
+
+      // Create: Any authenticated user can submit an anonymized telemetry reading
+      allow create: if isAuthenticated()
+                    && isValidPublicTelemetry(request.resource.data);
+
+      // Append-only historical log: Updates and deletes are forbidden
+      allow update, delete: if false;
+    }
+  }
+}
