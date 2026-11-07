@@ -839,6 +839,8 @@
       getAuth, 
       GoogleAuthProvider, 
       signInWithPopup, 
+      signInWithRedirect,
+      getRedirectResult,
       signOut, 
       onAuthStateChanged 
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -863,6 +865,16 @@
       currentUser: null,
       isInitialized: false,
 
+      // Default fallback config (Allows friends and judges to sign in without entering keys)
+      defaultConfig: {
+        apiKey: "",
+        authDomain: "krishi-sync.firebaseapp.com",
+        projectId: "krishi-sync",
+        storageBucket: "krishi-sync.appspot.com",
+        messagingSenderId: "1074546123998",
+        appId: ""
+      },
+
       init(customConfig = null) {
         let config = customConfig;
         if (!config) {
@@ -873,7 +885,11 @@
         }
 
         if (!config || !config.apiKey || config.apiKey === "YOUR_API_KEY") {
-          console.warn("[Firebase] No config found yet. Please enter keys in the setup modal.");
+          config = this.defaultConfig;
+        }
+
+        if (!config.apiKey) {
+          console.warn("[Firebase] No API key found yet. Please enter keys in the setup modal.");
           this.isInitialized = false;
           return false;
         }
@@ -884,6 +900,18 @@
           this.db = getFirestore(this.app);
           this.isInitialized = true;
           console.log("[Firebase] Successfully connected to project:", config.projectId);
+
+          // Handle redirect sign-in results (For mobile & browsers that block popups)
+          getRedirectResult(this.auth).then((result) => {
+            if (result && result.user) {
+              this.currentUser = result.user;
+              if (window.KrishiApp && window.KrishiApp.onFirebaseAuthStateChanged) {
+                window.KrishiApp.onFirebaseAuthStateChanged(result.user);
+              }
+            }
+          }).catch((err) => {
+            console.warn("[Auth] Redirect check error:", err);
+          });
 
           // Listen for Auth changes
           onAuthStateChanged(this.auth, (user) => {
@@ -906,9 +934,28 @@
         }
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: "select_account" });
-        const result = await signInWithPopup(this.auth, provider);
-        this.currentUser = result.user;
-        return result.user;
+        
+        try {
+          const result = await signInWithPopup(this.auth, provider);
+          this.currentUser = result.user;
+          return result.user;
+        } catch (err) {
+          console.warn("[Auth] Popup sign-in error:", err.code, err.message);
+
+          if (err.code === "auth/unauthorized-domain") {
+            alert("⚠️ Unauthorized Domain in Firebase!\n\nPlease open Firebase Console > Authentication > Settings > Authorized domains and click 'Add domain':\nanishachatterjee674-cmyk.github.io");
+            throw err;
+          }
+
+          // If popup was closed or blocked by browser/tracking prevention, fallback to redirect
+          if (err.code === "auth/popup-closed-by-user" || err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
+            const useRedirect = confirm("Google sign-in popup was closed or blocked by your browser.\n\nWould you like to sign in via direct Google redirect instead?");
+            if (useRedirect) {
+              return await signInWithRedirect(this.auth, provider);
+            }
+          }
+          throw err;
+        }
       },
 
       async logout() {
