@@ -15,6 +15,8 @@ const KrishiApp = {
     block: '',
     village: '',
     kisanId: '',
+    email: '',
+    photoURL: '',
     isLoggedIn: false
   },
 
@@ -50,14 +52,15 @@ const KrishiApp = {
 
   loadState() {
     const savedProfile = localStorage.getItem('krishisync_profile');
+    const isExplicitlyLoggedIn = localStorage.getItem('krishisync_is_logged_in') === 'true';
+
     if (savedProfile) {
       try {
         const parsed = JSON.parse(savedProfile);
-        // Only load profile if user actually logged in and it is not the legacy placeholder
-        if (parsed && parsed.isLoggedIn && parsed.name && parsed.name !== 'Ramesh Ghosh') {
-          this.profile = { ...this.profile, ...parsed };
+        // Only load if user logged in or filled their details and it is not the legacy placeholder
+        if (parsed && (parsed.isLoggedIn || isExplicitlyLoggedIn) && parsed.name && parsed.name !== 'Ramesh Ghosh') {
+          this.profile = { ...this.profile, ...parsed, isLoggedIn: true };
         } else {
-          // Reset to clean guest state
           this.profile.name = 'Welcome, Farmer';
           this.profile.isLoggedIn = false;
         }
@@ -100,6 +103,7 @@ const KrishiApp = {
 
   saveProfile() {
     localStorage.setItem('krishisync_profile', JSON.stringify(this.profile));
+    localStorage.setItem('krishisync_is_logged_in', this.profile.isLoggedIn ? 'true' : 'false');
   },
 
   saveCurrentReading() {
@@ -138,6 +142,42 @@ const KrishiApp = {
   },
 
   renderFarmerProfile() {
+    const isLogged = !!this.profile.isLoggedIn;
+
+    // 1. Top Navbar Buttons: Toggle Sign In button vs Logged In Profile Badge
+    const signInBtn = document.getElementById('googleSignInBtn');
+    const profileBadge = document.getElementById('userProfileBadge');
+    const avatarImg = document.getElementById('userAvatarImg');
+    const displayName = document.getElementById('userDisplayName');
+
+    if (signInBtn) {
+      if (isLogged) {
+        signInBtn.style.setProperty('display', 'none', 'important');
+        signInBtn.classList.add('hidden');
+      } else {
+        signInBtn.style.setProperty('display', 'flex', 'important');
+        signInBtn.classList.remove('hidden');
+      }
+    }
+
+    if (profileBadge) {
+      if (isLogged) {
+        profileBadge.style.setProperty('display', 'flex', 'important');
+        profileBadge.classList.remove('hidden');
+        if (displayName) displayName.innerText = this.profile.name || 'Farmer';
+        if (avatarImg) {
+          avatarImg.src = this.profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.profile.name || 'Farmer')}&background=10b981&color=fff`;
+        }
+      } else {
+        profileBadge.style.setProperty('display', 'none', 'important');
+        profileBadge.classList.add('hidden');
+      }
+    }
+
+    // 2. Farmer Profile Card (Header)
+    const cardStatusBadge = document.getElementById('profileLoggedStatusBadge');
+    const cardStatusDot = document.getElementById('profileLoggedStatusDot');
+    const cardStatusText = document.getElementById('profileLoggedStatusText');
     const nameEl = document.getElementById('profileFarmerName');
     const metaEl = document.getElementById('profileMeta');
     const badgesRow = document.getElementById('profileBadgesRow');
@@ -146,16 +186,17 @@ const KrishiApp = {
     const signInPrompt = document.getElementById('profileSignInPrompt');
     const editBtn = document.getElementById('profileEditBtn');
     const avatarEmoji = document.getElementById('profileAvatarEmoji');
-    const avatarImg = document.getElementById('profileAvatarImg');
+    const cardAvatarImg = document.getElementById('profileAvatarImg');
 
-    if (this.profile.isLoggedIn) {
-      // Logged in mode
+    if (isLogged) {
+      if (cardStatusDot) cardStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+      if (cardStatusText) cardStatusText.innerText = '🟢 Logged In Farmer (Active Profile)';
       if (nameEl) nameEl.innerText = this.profile.name;
       if (metaEl) {
         if (this.profile.district || this.profile.village) {
           metaEl.innerText = `${this.profile.landSize} Acres • ${this.profile.crop} • ${this.profile.village ? this.profile.village + ', ' : ''}${this.profile.district || 'West Bengal'}`;
         } else {
-          metaEl.innerText = `${this.profile.landSize} Acres • ${this.profile.crop} • Click "(Edit Farm Details)" to save your location & village`;
+          metaEl.innerText = `${this.profile.landSize} Acres • ${this.profile.crop} • Click "(Edit Farm Details)" to save your location`;
         }
       }
       if (badgesRow) {
@@ -176,20 +217,21 @@ const KrishiApp = {
         editBtn.classList.remove('hidden');
         editBtn.style.display = 'inline-block';
       }
-
-      if (this.profile.photoURL && avatarImg) {
-        avatarImg.src = this.profile.photoURL;
-        avatarImg.classList.remove('hidden');
+      if (this.profile.photoURL && cardAvatarImg) {
+        cardAvatarImg.src = this.profile.photoURL;
+        cardAvatarImg.classList.remove('hidden');
         if (avatarEmoji) avatarEmoji.classList.add('hidden');
       } else {
         if (avatarEmoji) {
           avatarEmoji.innerText = '👨‍🌾';
           avatarEmoji.classList.remove('hidden');
         }
-        if (avatarImg) avatarImg.classList.add('hidden');
+        if (cardAvatarImg) cardAvatarImg.classList.add('hidden');
       }
     } else {
-      // Guest / New visitor mode
+      if (cardStatusDot) cardStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+      if (cardStatusText) cardStatusText.innerText = 'Guest Farmer Mode';
+      
       let guestTitle = 'Welcome, Farmer';
       if (I18N.currentLang === 'bn') guestTitle = 'স্বাগতম, কৃষক বন্ধু';
       if (I18N.currentLang === 'hi') guestTitle = 'नमस्ते, किसान मित्र';
@@ -214,10 +256,67 @@ const KrishiApp = {
         avatarEmoji.innerText = '👤';
         avatarEmoji.classList.remove('hidden');
       }
-      if (avatarImg) avatarImg.classList.add('hidden');
+      if (cardAvatarImg) cardAvatarImg.classList.add('hidden');
     }
 
-    // Modal form input fields sync
+    // 3. Dedicated "My Farm Profile" Full Page (Tab 5)
+    const tabUserHeadline = document.getElementById('tabUserHeadline');
+    const tabUserEmail = document.getElementById('tabUserEmail');
+    const tabUserStatusPill = document.getElementById('tabUserStatusPill');
+    const tabGoogleLoginBtn = document.getElementById('tabGoogleLoginBtn');
+    const tabSignOutBtn = document.getElementById('tabSignOutBtn');
+    const tabUserAvatarImg = document.getElementById('tabUserAvatarImg');
+    const tabUserAvatarEmoji = document.getElementById('tabUserAvatarEmoji');
+    const navProfileActiveDot = document.getElementById('navProfileActiveDot');
+
+    if (tabUserHeadline) tabUserHeadline.innerText = isLogged ? `Hello, ${this.profile.name}` : 'Welcome, Farmer';
+    if (tabUserEmail) {
+      if (isLogged) {
+        tabUserEmail.innerText = this.profile.email ? `Connected: ${this.profile.email}` : 'Profile saved locally & calibrated';
+      } else {
+        tabUserEmail.innerText = 'Sign in with Google below or save your farm details to register';
+      }
+    }
+    if (tabUserStatusPill) {
+      tabUserStatusPill.innerText = isLogged ? '🟢 Logged In Farmer (Active)' : 'Guest Mode';
+    }
+    if (tabGoogleLoginBtn) {
+      tabGoogleLoginBtn.style.display = isLogged ? 'none' : 'inline-flex';
+    }
+    if (tabSignOutBtn) {
+      tabSignOutBtn.style.display = isLogged ? 'inline-block' : 'none';
+    }
+    if (tabUserAvatarImg && this.profile.photoURL) {
+      tabUserAvatarImg.src = this.profile.photoURL;
+      tabUserAvatarImg.classList.remove('hidden');
+      if (tabUserAvatarEmoji) tabUserAvatarEmoji.classList.add('hidden');
+    } else if (tabUserAvatarEmoji) {
+      tabUserAvatarEmoji.innerText = isLogged ? '👨‍🌾' : '👤';
+      tabUserAvatarEmoji.classList.remove('hidden');
+      if (tabUserAvatarImg) tabUserAvatarImg.classList.add('hidden');
+    }
+    if (navProfileActiveDot) {
+      navProfileActiveDot.style.display = isLogged ? 'inline-block' : 'none';
+    }
+
+    // Populate Page Inputs
+    const pageName = document.getElementById('pageInputName');
+    const pageLand = document.getElementById('pageInputLand');
+    const pageDistrict = document.getElementById('pageInputDistrict');
+    const pageVillage = document.getElementById('pageInputVillage');
+    const pageCrop = document.getElementById('pageInputCrop');
+    const pageKisanId = document.getElementById('pageInputKisanId');
+    const pagePhone = document.getElementById('pageInputPhone');
+
+    if (pageName) pageName.value = (this.profile.name !== 'Welcome, Farmer') ? this.profile.name : '';
+    if (pageLand) pageLand.value = this.profile.landSize || 2.5;
+    if (pageDistrict) pageDistrict.value = this.profile.district || '';
+    if (pageVillage) pageVillage.value = this.profile.village || '';
+    if (pageCrop) pageCrop.value = this.profile.crop || 'Paddy';
+    if (pageKisanId) pageKisanId.value = this.profile.kisanId || '';
+    if (pagePhone) pagePhone.value = this.profile.phone || '';
+
+    // Also populate Modal Inputs if user opened modal
     const inputName = document.getElementById('inputName');
     const inputLand = document.getElementById('inputLand');
     const inputCrop = document.getElementById('inputCrop');
@@ -891,16 +990,18 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
     document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
       const tab = btn.getAttribute('data-tab');
       if (tab === tabId) {
-        btn.classList.add('text-emerald-600', 'font-bold');
-        btn.classList.remove('text-slate-400');
+        btn.classList.add('text-emerald-600', 'font-bold', 'border-emerald-500');
+        btn.classList.remove('text-slate-500');
       } else {
-        btn.classList.remove('text-emerald-600', 'font-bold');
-        btn.classList.add('text-slate-400');
+        btn.classList.remove('text-emerald-600', 'font-bold', 'border-emerald-500');
+        btn.classList.add('text-slate-500');
       }
     });
 
     if (tabId === 'weather') {
       this.renderWeather();
+    } else if (tabId === 'profile') {
+      this.renderFarmerProfile();
     }
   },
 
@@ -942,6 +1043,54 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
     if (statDrought) statDrought.innerText = `${metrics.droughtStressedVillages} Villages`;
   },
 
+  // Handles submission from the dedicated "My Farm Profile" Full Page (Tab 5)
+  handleTabProfileSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+
+    const name = document.getElementById('pageInputName')?.value?.trim();
+    const land = parseFloat(document.getElementById('pageInputLand')?.value);
+    const district = document.getElementById('pageInputDistrict')?.value?.trim();
+    const village = document.getElementById('pageInputVillage')?.value?.trim();
+    const crop = document.getElementById('pageInputCrop')?.value;
+    const kisanId = document.getElementById('pageInputKisanId')?.value?.trim();
+    const phone = document.getElementById('pageInputPhone')?.value?.trim();
+
+    this.profile.name = name || this.profile.name || 'Farmer';
+    this.profile.landSize = !isNaN(land) && land > 0 ? land : 2.5;
+    this.profile.district = district || '';
+    this.profile.village = village || '';
+    this.profile.crop = crop || 'Paddy';
+    this.profile.kisanId = kisanId || `WB-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    this.profile.phone = phone || '';
+    this.profile.isLoggedIn = true;
+
+    this.saveProfile();
+    this.renderFarmerProfile();
+    this.renderSoilReport();
+    this.renderWeather();
+    this.renderYojanas();
+
+    // Push to Cloud Firestore if user is authenticated with Google
+    if (window.FirebaseService && window.FirebaseService.currentUser) {
+      window.FirebaseService.saveUserProfile({
+        name: this.profile.name,
+        landSize: this.profile.landSize,
+        district: this.profile.district,
+        village: this.profile.village,
+        crop: this.profile.crop,
+        kisanId: this.profile.kisanId,
+        phone: this.profile.phone
+      }).then(() => {
+        console.log("[Firestore] User farm profile updated in cloud.");
+      });
+    }
+
+    alert(`✅ Farm Profile Saved Successfully!\n\nFarmer: ${this.profile.name}\nLand Size: ${this.profile.landSize} Acres\nLocation: ${this.profile.village ? this.profile.village + ', ' : ''}${this.profile.district}\nCrop: ${this.profile.crop}\n\nYour Soil Health Plan has been calibrated for your field!`);
+    
+    // Switch to Soil Probe screen so user sees calibrated advisory
+    this.switchTab('probe');
+  },
+
   setupEventListeners() {
     // Probe button
     const probeBtn = document.getElementById('probeFieldBtn');
@@ -963,10 +1112,10 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
       });
     }
 
-    // Profile form submit: Saves farm quantity, location & personal details
+    // Modal Profile form submit
     const profileForm = document.getElementById('farmerProfileForm');
     if (profileForm) {
-      profileForm.addEventListener('submit', async (e) => {
+      profileForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const inputName = document.getElementById('inputName');
         const inputLand = document.getElementById('inputLand');
@@ -987,16 +1136,14 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
 
         this.saveProfile();
         this.renderFarmerProfile();
-        this.renderSoilReport(); // dynamically recalculates fertilizer dosage for their field size!
-        this.renderWeather();    // gets forecast for their district!
-        this.renderYojanas();    // matches schemes for their land size & district!
+        this.renderSoilReport();
+        this.renderWeather();
+        this.renderYojanas();
 
-        // Close modal
-        document.getElementById('profileEditModal').classList.add('hidden');
+        document.getElementById('profileEditModal')?.classList.add('hidden');
 
-        // Sync to Cloud Firestore (/users/{uid})
         if (window.FirebaseService && window.FirebaseService.currentUser) {
-          const success = await window.FirebaseService.saveUserProfile({
+          window.FirebaseService.saveUserProfile({
             name: this.profile.name,
             landSize: this.profile.landSize,
             crop: this.profile.crop,
@@ -1005,12 +1152,9 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
             kisanId: this.profile.kisanId,
             phone: this.profile.phone
           });
-          if (success) {
-            alert(`✅ Farm Profile Saved!\n\nWelcome, ${this.profile.name}.\nField Size: ${this.profile.landSize} Acres\nLocation: ${this.profile.village ? this.profile.village + ', ' : ''}${this.profile.district}\n\nFertilizer dosage and government subsidies have been customized for your farm.`);
-          }
-        } else {
-          alert(`✅ Farm Profile Saved!\n\nField Size: ${this.profile.landSize} Acres.\nSign in with Google to sync your data across devices.`);
         }
+
+        alert(`✅ Farm Profile Saved!\n\nWelcome, ${this.profile.name}.\nField Size: ${this.profile.landSize} Acres\nLocation: ${this.profile.village ? this.profile.village + ', ' : ''}${this.profile.district}\n\nFertilizer dosage and government subsidies have been customized for your farm.`);
       });
     }
   },
@@ -1025,17 +1169,12 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
       const user = await window.FirebaseService.loginWithGoogle();
       if (user) {
         await this.onFirebaseAuthStateChanged(user);
+        this.switchTab('profile'); // Immediately show the My Farm Profile page!
       }
     } catch (err) {
-      console.warn("Sign-in error:", err);
-      if (err.code === "auth/unauthorized-domain") {
+      console.warn("Sign-in handling:", err);
+      if (err && err.code === "auth/unauthorized-domain") {
         alert("⚠️ Unauthorized Domain!\nPlease add anishachatterjee674-cmyk.github.io to Firebase Console > Authentication > Settings > Authorized domains.");
-      } else if (err.code === "auth/popup-closed-by-user") {
-        console.log("Popup closed by user.");
-      } else if (err.code === "auth/operation-not-allowed") {
-        alert("⚠️ Google Sign-In is not enabled yet in your Firebase Console.\nPlease go to Firebase Console > Authentication > Sign-in method, click Google, and enable it.");
-      } else {
-        alert("Google Sign-In: " + (err.message || err));
       }
     }
   },
@@ -1044,38 +1183,20 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
     if (window.FirebaseService) {
       await window.FirebaseService.logout();
     }
+    localStorage.removeItem('krishisync_is_logged_in');
     await this.onFirebaseAuthStateChanged(null);
     alert("Signed out successfully.");
   },
 
   async onFirebaseAuthStateChanged(user) {
-    const signInBtn = document.getElementById('googleSignInBtn');
-    const profileBadge = document.getElementById('userProfileBadge');
-    const avatarImg = document.getElementById('userAvatarImg');
-    const displayName = document.getElementById('userDisplayName');
-
     if (user) {
       console.log("[Auth] Signed in as:", user.email, user.uid);
       
-      // Update top navbar: Hide Google Sign In button, Show Logged In profile badge
-      if (signInBtn) {
-        signInBtn.classList.add('hidden');
-        signInBtn.style.display = 'none';
-      }
-      if (profileBadge) {
-        profileBadge.classList.remove('hidden');
-        profileBadge.style.display = 'flex';
-      }
-
       const detectedName = this.detectNameFromUser(user);
-      if (displayName) displayName.innerText = detectedName;
-      if (avatarImg) {
-        avatarImg.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(detectedName)}&background=10b981&color=fff`;
-      }
-
       this.profile.isLoggedIn = true;
       this.profile.email = user.email || '';
       this.profile.photoURL = user.photoURL || '';
+      
       if (!this.profile.name || this.profile.name === 'Welcome, Farmer') {
         this.profile.name = detectedName;
       }
@@ -1087,7 +1208,7 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
       }
 
       if (remoteProfile && (remoteProfile.district || remoteProfile.village || remoteProfile.landSize)) {
-        // User already has saved farm details in Firestore!
+        // User already has saved farm details in Firestore
         this.profile.name = remoteProfile.name || detectedName;
         this.profile.landSize = parseFloat(remoteProfile.landSize) || 2.5;
         this.profile.crop = remoteProfile.crop || 'Paddy';
@@ -1096,32 +1217,19 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
         this.profile.block = remoteProfile.block || '';
         this.profile.kisanId = remoteProfile.kisanId || '';
         this.profile.phone = remoteProfile.phone || '';
-        this.saveProfile();
-        this.renderFarmerProfile();
-        this.renderSoilReport();
-        this.renderWeather();
-        this.renderYojanas();
       } else {
-        // First-time logged-in user: Prompt them to fill in their farm details!
+        // First-time logged-in user: auto-populate detected name and Kisan ID
         this.profile.name = detectedName;
         if (!this.profile.kisanId) {
           this.profile.kisanId = `WB-2026-${Math.floor(1000 + Math.random() * 9000)}`;
         }
-        this.saveProfile();
-        this.renderFarmerProfile();
-
-        // Automatically open the Farm Details modal so they can enter field quantity, location, etc.
-        const modal = document.getElementById('profileEditModal');
-        const welcomeNotice = document.getElementById('profileModalNotice');
-        const welcomeName = document.getElementById('modalWelcomeName');
-        if (welcomeNotice && welcomeName) {
-          welcomeName.innerText = detectedName;
-          welcomeNotice.classList.remove('hidden');
-        }
-        if (modal) {
-          modal.classList.remove('hidden');
-        }
       }
+
+      this.saveProfile();
+      this.renderFarmerProfile();
+      this.renderSoilReport();
+      this.renderWeather();
+      this.renderYojanas();
 
       // Load user's private test history from Firestore
       if (window.FirebaseService && window.FirebaseService.getUserReadings) {
@@ -1137,15 +1245,6 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
       this.updateNetworkBadge();
     } else {
       // LOGGED OUT / GUEST
-      if (signInBtn) {
-        signInBtn.classList.remove('hidden');
-        signInBtn.style.display = 'flex';
-      }
-      if (profileBadge) {
-        profileBadge.classList.add('hidden');
-        profileBadge.style.display = 'none';
-      }
-
       this.profile = {
         name: 'Welcome, Farmer',
         nameBn: 'স্বাগতম, কৃষক বন্ধু',
@@ -1157,6 +1256,8 @@ _Generated live via KrishiSync IoT BLE Wand Analyzer_`;
         block: '',
         village: '',
         kisanId: '',
+        email: '',
+        photoURL: '',
         isLoggedIn: false
       };
       this.saveProfile();
