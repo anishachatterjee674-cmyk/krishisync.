@@ -1,11 +1,13 @@
 // KrishiSync - Firebase Service Module (Auth & Firestore)
 // Uses Firebase v10 CDN ES Modules for zero-build deployment on GitHub Pages
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -20,8 +22,7 @@ import {
   query, 
   orderBy, 
   limit, 
-  serverTimestamp,
-  onSnapshot
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 export const FirebaseService = {
@@ -31,8 +32,7 @@ export const FirebaseService = {
   currentUser: null,
   isInitialized: false,
 
-  // Replace this placeholder with your config from Firebase Console:
-  // Firebase Console > Project Settings > General > Your Apps > Web app
+  // Default production config for all users, friends, and judges
   defaultConfig: {
     apiKey: "AIzaSyDWSTIL7j8Lfqogae_tE5Ix0k2fxt-eRgc",
     authDomain: "krishi-sync.firebaseapp.com",
@@ -44,131 +44,126 @@ export const FirebaseService = {
   },
 
   init(customConfig = null) {
-    const config = customConfig || this.loadSavedConfig() || this.defaultConfig;
-    
-    // Check if configuration is set with real keys
-    if (!config.apiKey || config.apiKey === "YOUR_API_KEY") {
-      console.warn("[Firebase] Using placeholder configuration. Please enter your Firebase project keys.");
-      this.isInitialized = false;
-      return false;
+    let config = customConfig;
+    if (!config) {
+      const saved = localStorage.getItem("krishisync_firebase_config");
+      if (saved) {
+        try { config = JSON.parse(saved); } catch (e) {}
+      }
+    }
+
+    if (!config || !config.apiKey || config.apiKey === "YOUR_API_KEY") {
+      config = this.defaultConfig;
     }
 
     try {
-      this.app = initializeApp(config);
+      this.app = getApps().length ? getApp() : initializeApp(config);
       this.auth = getAuth(this.app);
       this.db = getFirestore(this.app);
       this.isInitialized = true;
-      console.log("[Firebase] Successfully initialized with project:", config.projectId);
+      console.log("[Firebase] Successfully connected to project:", config.projectId);
+
+      // Handle redirect sign-in result (for mobile & Edge browsers)
+      getRedirectResult(this.auth).then((result) => {
+        if (result && result.user) {
+          this.currentUser = result.user;
+          if (window.KrishiApp && window.KrishiApp.onFirebaseAuthStateChanged) {
+            window.KrishiApp.onFirebaseAuthStateChanged(result.user);
+          }
+        }
+      }).catch((err) => {
+        console.warn("[Auth] Redirect check error:", err);
+      });
+
+      // Listen for Auth changes
+      onAuthStateChanged(this.auth, (user) => {
+        this.currentUser = user;
+        if (window.KrishiApp && window.KrishiApp.onFirebaseAuthStateChanged) {
+          window.KrishiApp.onFirebaseAuthStateChanged(user);
+        }
+      });
+
       return true;
     } catch (err) {
-      console.error("[Firebase] Initialization error:", err);
-      this.isInitialized = false;
+      console.error("[Firebase] Init error:", err);
       return false;
     }
   },
 
-  loadSavedConfig() {
-    const saved = localStorage.getItem("krishisync_firebase_config");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return null;
-  },
-
-  saveConfig(config) {
-    localStorage.setItem("krishisync_firebase_config", JSON.stringify(config));
-    return this.init(config);
-  },
-
-  // Listen to Auth State
-  onAuth(callback) {
-    if (!this.isInitialized || !this.auth) {
-      callback(null);
-      return;
-    }
-    onAuthStateChanged(this.auth, async (user) => {
-      this.currentUser = user;
-      if (user) {
-        console.log("[Auth] User logged in:", user.displayName, user.uid);
-      } else {
-        console.log("[Auth] User signed out.");
-      }
-      callback(user);
-    });
-  },
-
-  // Google Sign-In Popup
+  // Google Sign-In with automatic popup/redirect fallback
   async loginWithGoogle() {
-    if (!this.isInitialized) {
-      throw new Error("Firebase is not initialized. Please provide your Firebase configuration keys first.");
+    if (!this.isInitialized || !this.auth) {
+      this.init();
     }
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    const result = await signInWithPopup(this.auth, provider);
-    this.currentUser = result.user;
+    
+    try {
+      const result = await signInWithPopup(this.auth, provider);
+      this.currentUser = result.user;
+      return result.user;
+    } catch (err) {
+      console.warn("[Auth] Popup error:", err.code, err.message);
 
-    // Create / update initial user profile in Firestore
-    await this.syncGoogleProfileToFirestore(result.user);
-    return result.user;
+      if (err.code === "auth/unauthorized-domain") {
+        alert("⚠️ Unauthorized Domain!\nPlease open Firebase Console > Authentication > Settings > Authorized domains and add:\nanishachatterjee674-cmyk.github.io");
+        throw err;
+      }
+
+      // If popup was closed or blocked, auto fallback to redirect
+      if (err.code === "auth/popup-closed-by-user" || err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
+        const useRedirect = confirm("Google sign-in popup was closed or blocked by your browser.\n\nWould you like to sign in via Google redirect instead?");
+        if (useRedirect) {
+          return await signInWithRedirect(this.auth, provider);
+        }
+      }
+      throw err;
+    }
   },
 
   // Sign Out
   async logout() {
-    if (!this.auth) return;
-    await signOut(this.auth);
-    this.currentUser = null;
-  },
-
-  // Sync Google info to /users/{uid}
-  async syncGoogleProfileToFirestore(user) {
-    if (!this.db || !user) return;
-    const userRef = doc(this.db, "users", user.uid);
-    const existing = await getDoc(userRef);
-
-    if (!existing.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        name: user.displayName || "Farmer",
-        email: user.email,
-        photoURL: user.photoURL || "",
-        phone: user.phoneNumber || "",
-        landSize: 2.5,
-        crop: "Paddy",
-        district: "Purba Bardhaman",
-        block: "Memari-I",
-        village: "Radhakantapur",
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp()
-      });
-    } else {
-      await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
+    if (this.auth) {
+      await signOut(this.auth);
+      this.currentUser = null;
     }
   },
 
-  // Save farmer land/crop profile to /users/{uid}
+  // Save farmer profile to /users/{uid} in Firestore
   async saveUserProfile(profileData) {
-    if (!this.db || !this.currentUser) return;
-    const userRef = doc(this.db, "users", this.currentUser.uid);
-    await setDoc(userRef, {
-      ...profileData,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    if (!this.db || !this.currentUser) return false;
+    try {
+      const userRef = doc(this.db, "users", this.currentUser.uid);
+      await setDoc(userRef, {
+        ...profileData,
+        uid: this.currentUser.uid,
+        email: this.currentUser.email || '',
+        photoURL: this.currentUser.photoURL || '',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return true;
+    } catch (e) {
+      console.error("[Firebase] Error saving user profile:", e);
+      return false;
+    }
   },
 
-  // Load user profile from /users/{uid}
+  // Load user profile from /users/{uid} in Firestore
   async getUserProfile() {
     if (!this.db || !this.currentUser) return null;
-    const userRef = doc(this.db, "users", this.currentUser.uid);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
-      return snap.data();
+    try {
+      const userRef = doc(this.db, "users", this.currentUser.uid);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        return snap.data();
+      }
+    } catch (e) {
+      console.warn("[Firebase] Could not get user profile:", e);
     }
     return null;
   },
 
-  // Save soil test reading to /users/{uid}/readings/{readingId}
+  // Save soil test reading to /users/{uid}/readings AND /public_telemetry
   async saveSoilReading(reading) {
     if (!this.db || !this.currentUser) return null;
     
@@ -185,7 +180,7 @@ export const FirebaseService = {
       farmerUid: this.currentUser.uid
     });
 
-    // 2. Push anonymized record to /public_telemetry for the Government Village Heatmap!
+    // 2. Push anonymized record to /public_telemetry for the Government Village Heatmap
     try {
       const publicCol = collection(this.db, "public_telemetry");
       await addDoc(publicCol, {
@@ -204,21 +199,26 @@ export const FirebaseService = {
     return docRef.id;
   },
 
-  // Fetch past soil tests for current logged-in user
+  // Fetch past soil tests for current user
   async getUserReadings(maxResults = 20) {
     if (!this.db || !this.currentUser) return [];
-    const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
-    const q = query(readingsCol, orderBy("timestamp", "desc"), limit(maxResults));
-    const snap = await getDocs(q);
-    const results = [];
-    snap.forEach((doc) => {
-      const data = doc.data();
-      results.push({
-        id: doc.id,
-        ...data,
-        date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString("en-IN") : "Just now"
+    try {
+      const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
+      const q = query(readingsCol, orderBy("timestamp", "desc"), limit(maxResults));
+      const snap = await getDocs(q);
+      const results = [];
+      snap.forEach((doc) => {
+        const data = doc.data();
+        results.push({
+          id: doc.id,
+          ...data,
+          date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString("en-IN") : "Just now"
+        });
       });
-    });
-    return results;
+      return results;
+    } catch (e) {
+      console.warn("[Firebase] Could not fetch readings:", e);
+      return [];
+    }
   }
 };
