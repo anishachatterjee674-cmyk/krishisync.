@@ -158,9 +158,13 @@
             <img id="profileAvatarImg" src="" alt="Avatar" class="w-full h-full object-cover hidden">
           </div>
           <div>
+            <div id="profileLoggedStatusBadge" class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-emerald-100 border border-white/30 mb-1">
+              <span id="profileLoggedStatusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span id="profileLoggedStatusText">Guest Farmer Mode</span>
+            </div>
             <div class="flex items-center space-x-2">
               <h2 id="profileFarmerName" class="text-xl font-extrabold tracking-tight">Welcome, Farmer</h2>
-              <button id="profileEditBtn" onclick="document.getElementById('profileEditModal').classList.remove('hidden')" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/30 transition-all hidden">
+              <button id="profileEditBtn" onclick="KrishiApp.switchTab('profile')" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/30 transition-all hidden">
                 ✏️ Edit Farm Details
               </button>
             </div>
@@ -198,6 +202,11 @@
       <button onclick="KrishiApp.switchTab('probe')" data-tab="probe" class="bottom-nav-btn px-4 py-2 rounded-xl text-xs font-bold bg-white shadow-sm border border-slate-200 flex items-center space-x-2 text-emerald-600 transition-all">
         <span>🧪</span>
         <span data-i18n="tabProbe">Soil Probe</span>
+      </button>
+      <button onclick="KrishiApp.switchTab('profile')" data-tab="profile" class="bottom-nav-btn px-4 py-2 rounded-xl text-xs font-semibold bg-white shadow-sm border border-slate-200 flex items-center space-x-2 text-slate-500 hover:text-slate-800 transition-all">
+        <span>👨‍🌾</span>
+        <span>My Farm Profile</span>
+        <span id="navProfileActiveDot" class="w-2 h-2 rounded-full bg-emerald-500 hidden"></span>
       </button>
       <button onclick="KrishiApp.switchTab('weather')" data-tab="weather" class="bottom-nav-btn px-4 py-2 rounded-xl text-xs font-semibold bg-white shadow-sm border border-slate-200 flex items-center space-x-2 text-slate-500 hover:text-slate-800 transition-all">
         <span>🌦️</span>
@@ -453,6 +462,118 @@
           <!-- Populated by KrishiApp.renderHistory() -->
         </div>
       </div>
+    </div>
+
+    <!-- --------------------------------------------------------------------- -->
+    <!-- TAB 5: MY FARM & PERSONAL DETAILS PAGE -->
+    <!-- --------------------------------------------------------------------- -->
+    <div id="tab-profile" class="tab-content-panel hidden space-y-6">
+      
+      <!-- Prominent Logged-In / Account Status Banner -->
+      <div id="farmProfileStatusBanner" class="bg-gradient-to-r from-emerald-700 to-teal-800 rounded-3xl p-6 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+        <div class="absolute -right-4 -bottom-4 opacity-10 text-8xl pointer-events-none">🌾</div>
+        
+        <div class="flex items-center space-x-4 relative z-10">
+          <div class="w-16 h-16 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center text-3xl shadow-inner flex-shrink-0 overflow-hidden">
+            <span id="tabUserAvatarEmoji">👨‍🌾</span>
+            <img id="tabUserAvatarImg" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="tabUserStatusPill" class="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-white/20 text-emerald-100 rounded-md">
+                Active Farmer Profile
+              </span>
+              <span id="tabUserSyncPill" class="text-xs text-emerald-200 font-bold">☁️ Cloud Synced</span>
+            </div>
+            <h3 id="tabUserHeadline" class="text-xl md:text-2xl font-black mt-1">Welcome, Farmer</h3>
+            <p id="tabUserEmail" class="text-xs text-emerald-100 font-medium">Please sign in with Google or save your farm details below</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center space-x-2 relative z-10">
+          <button id="tabGoogleLoginBtn" onclick="KrishiApp.handleGoogleSignIn()" class="px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 font-black text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 active:scale-95">
+            <span>🔑</span>
+            <span>Sign in with Google</span>
+          </button>
+          <button id="tabSignOutBtn" onclick="KrishiApp.handleSignOut()" class="px-4 py-2.5 bg-red-600/80 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition-all hidden">
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      <!-- Farm & Personal Details Form Card -->
+      <div class="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+          <div>
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Official Farmer Registration</span>
+            <h3 class="text-lg md:text-xl font-black text-slate-900">Your Land & Crop Profile</h3>
+            <p class="text-xs text-slate-500 mt-1">
+              Enter your actual field acreage & location. KrishiSync uses these exact numbers to calculate fertilizer weight and match government subsidies.
+            </p>
+          </div>
+          <span class="text-4xl">🚜</span>
+        </div>
+
+        <form id="tabFarmerProfileForm" onsubmit="KrishiApp.handleTabProfileSubmit(event)" class="space-y-5 text-xs">
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Farmer Full Name</label>
+              <input id="pageInputName" type="text" placeholder="e.g. Anisha Chatterjee" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm" required>
+              <p class="text-[11px] text-slate-400 mt-1">Detected automatically from your Google Account / Email</p>
+            </div>
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Field Quantity / Total Land (Acres)</label>
+              <input id="pageInputLand" type="number" step="0.1" min="0.1" placeholder="e.g. 2.5" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm" required>
+              <p class="text-[11px] text-emerald-600 font-semibold mt-1">🌾 Critical: Fertilizer dosage is multiplied by your exact acreage</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">District / District HQ</label>
+              <input id="pageInputDistrict" type="text" placeholder="e.g. Purba Bardhaman or South 24 Parganas" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm" required>
+            </div>
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Village & Block Name</label>
+              <input id="pageInputVillage" type="text" placeholder="e.g. Memari-I, Radhakantapur" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Primary Crop</label>
+              <select id="pageInputCrop" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm">
+                <option value="Paddy">Paddy / আমন ধান</option>
+                <option value="Potato">Potato / আলু</option>
+                <option value="Jute">Jute / পাট</option>
+                <option value="Mustard">Mustard / সরিষা</option>
+                <option value="Vegetables">Vegetables / শাকসবজি</option>
+                <option value="Wheat">Wheat / গম</option>
+              </select>
+            </div>
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Kisan ID / Voter ID</label>
+              <input id="pageInputKisanId" type="text" placeholder="e.g. WB-2026-9042" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm">
+            </div>
+            <div>
+              <label class="font-extrabold text-slate-700 block mb-1.5 text-xs">Contact Phone</label>
+              <input id="pageInputPhone" type="tel" placeholder="+91 98321..." class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm">
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p class="text-xs text-slate-500">
+              🔒 Stored securely in Cloud Firestore (<code class="bg-slate-100 px-1 py-0.5 rounded text-emerald-700">/users/{uid}</code>)
+            </p>
+            <button type="submit" class="w-full sm:w-auto px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition-all active:scale-95 flex items-center justify-center space-x-2">
+              <span>💾</span>
+              <span>Save Farm Details & Update Advisory</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
     </div>
 
   </main>
@@ -938,9 +1059,11 @@
           // Handle redirect sign-in results (For mobile & browsers that block popups)
           getRedirectResult(this.auth).then((result) => {
             if (result && result.user) {
+              console.log("[Auth] User logged in via redirect:", result.user.email);
               this.currentUser = result.user;
-              if (window.KrishiApp && window.KrishiApp.onFirebaseAuthStateChanged) {
+              if (window.KrishiApp) {
                 window.KrishiApp.onFirebaseAuthStateChanged(result.user);
+                window.KrishiApp.switchTab('profile');
               }
             }
           }).catch((err) => {
@@ -974,19 +1097,17 @@
           this.currentUser = result.user;
           return result.user;
         } catch (err) {
-          console.warn("[Auth] Popup sign-in error:", err.code, err.message);
+          console.warn("[Auth] Popup sign-in notice:", err.code, err.message);
 
           if (err.code === "auth/unauthorized-domain") {
             alert("⚠️ Unauthorized Domain in Firebase!\n\nPlease open Firebase Console > Authentication > Settings > Authorized domains and click 'Add domain':\nanishachatterjee674-cmyk.github.io");
             throw err;
           }
 
-          // If popup was closed or blocked by browser/tracking prevention, fallback to redirect
+          // In Edge or mobile browsers where cross-origin popups are blocked by tracking prevention, seamlessly switch to redirect
           if (err.code === "auth/popup-closed-by-user" || err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
-            const useRedirect = confirm("Google sign-in popup was closed or blocked by your browser.\n\nWould you like to sign in via direct Google redirect instead?");
-            if (useRedirect) {
-              return await signInWithRedirect(this.auth, provider);
-            }
+            console.log("[Auth] Switching directly to Google redirect sign-in...");
+            return await signInWithRedirect(this.auth, provider);
           }
           throw err;
         }
