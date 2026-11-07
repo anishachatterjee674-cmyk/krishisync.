@@ -34,12 +34,13 @@ export const FirebaseService = {
   // Replace this placeholder with your config from Firebase Console:
   // Firebase Console > Project Settings > General > Your Apps > Web app
   defaultConfig: {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyDWSTIL7j8Lfqogae_tE5Ix0k2fxt-eRgc",
+    authDomain: "krishi-sync.firebaseapp.com",
+    projectId: "krishi-sync",
+    storageBucket: "krishi-sync.firebasestorage.app",
+    messagingSenderId: "1074546123998",
+    appId: "1:1074546123998:web:672620bbf4382fead98e4f",
+    measurementId: "G-W6563GPZ8T"
   },
 
   init(customConfig = null) {
