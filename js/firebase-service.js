@@ -112,10 +112,8 @@ export const FirebaseService = {
 
       // If popup was closed or blocked, auto fallback to redirect
       if (err.code === "auth/popup-closed-by-user" || err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
-        const useRedirect = confirm("Google sign-in popup was closed or blocked by your browser.\n\nWould you like to sign in via Google redirect instead?");
-        if (useRedirect) {
-          return await signInWithRedirect(this.auth, provider);
-        }
+        console.log("[Auth] Switching directly to Google redirect sign-in...");
+        return await signInWithRedirect(this.auth, provider);
       }
       throw err;
     }
