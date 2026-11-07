@@ -116,10 +116,16 @@
             </button>
 
             <!-- User Avatar & Sign Out (Shown when logged in) -->
-            <div id="userProfileBadge" class="hidden flex items-center space-x-2 bg-emerald-50 border border-emerald-200 rounded-lg p-1 pl-2">
-              <img id="userAvatarImg" src="" alt="Avatar" class="w-6 h-6 rounded-full border border-emerald-500 shadow-sm object-cover">
-              <span id="userDisplayName" class="text-xs font-bold text-emerald-900 hidden lg:inline max-w-[100px] truncate">Farmer</span>
-              <button onclick="KrishiApp.handleSignOut()" title="Sign Out" class="px-2 py-0.5 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors font-medium">
+            <div id="userProfileBadge" class="hidden flex items-center space-x-2 bg-emerald-50 border border-emerald-200 rounded-lg p-1.5 pl-2 shadow-sm">
+              <div class="relative flex-shrink-0">
+                <img id="userAvatarImg" src="" alt="Avatar" class="w-7 h-7 rounded-full border border-emerald-500 shadow-sm object-cover">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute -bottom-0.5 -right-0.5"></span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span id="userDisplayName" class="text-xs font-extrabold text-emerald-900 max-w-[120px] truncate leading-tight">Farmer</span>
+                <span class="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Logged In</span>
+              </div>
+              <button onclick="KrishiApp.handleSignOut()" title="Sign Out" class="ml-1 px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded border border-red-200 transition-colors font-semibold">
                 Sign Out
               </button>
             </div>
@@ -147,22 +153,29 @@
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
         <div class="flex items-center space-x-4">
-          <div class="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl">
-            👨‍🌾
+          <div id="profileAvatarBox" class="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl overflow-hidden shadow-inner flex-shrink-0">
+            <span id="profileAvatarEmoji">👤</span>
+            <img id="profileAvatarImg" src="" alt="Avatar" class="w-full h-full object-cover hidden">
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <h2 id="profileFarmerName" class="text-xl font-extrabold tracking-tight">Ramesh Ghosh</h2>
-              <button onclick="document.getElementById('profileEditModal').classList.remove('hidden')" class="text-emerald-200 hover:text-white text-xs font-medium underline">
-                (Edit)
+              <h2 id="profileFarmerName" class="text-xl font-extrabold tracking-tight">Welcome, Farmer</h2>
+              <button id="profileEditBtn" onclick="document.getElementById('profileEditModal').classList.remove('hidden')" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/30 transition-all hidden">
+                ✏️ Edit Farm Details
               </button>
             </div>
             <p id="profileMeta" class="text-xs text-emerald-100 font-medium mt-0.5">
-              2.5 Acres • Paddy (আমন ধান) • Purba Bardhaman
+              Please sign in with Google to set your field acreage & view personalized recommendations
             </p>
-            <div class="flex items-center space-x-2 mt-2">
-              <span class="px-2 py-0.5 text-[10px] bg-white/20 rounded-md font-semibold">Memari-I Block</span>
-              <span class="px-2 py-0.5 text-[10px] bg-emerald-500/50 rounded-md font-semibold text-emerald-100">Kisan ID: WB-2026-9042</span>
+            <div id="profileBadgesRow" class="flex items-center space-x-2 mt-2 hidden">
+              <span id="profileVillageBadge" class="px-2 py-0.5 text-[10px] bg-white/20 rounded-md font-semibold">Village: Not Set</span>
+              <span id="profileKisanIdBadge" class="px-2 py-0.5 text-[10px] bg-emerald-500/50 rounded-md font-semibold text-emerald-100">Kisan ID: Not Set</span>
+            </div>
+            <div id="profileSignInPrompt" class="mt-2">
+              <button onclick="KrishiApp.handleGoogleSignIn()" class="px-3.5 py-1.5 bg-white text-emerald-800 hover:bg-emerald-50 font-extrabold text-xs rounded-xl shadow-md flex items-center space-x-1.5 transition-all active:scale-95">
+                <span>🔑</span>
+                <span>Sign in with Google to Setup Your Farm</span>
+              </button>
             </div>
           </div>
         </div>
@@ -638,28 +651,28 @@
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs mb-3">
-          <div><strong>Farmer:</strong> Ramesh Ghosh</div>
-          <div><strong>Date:</strong> 06 Nov 2026</div>
-          <div><strong>District:</strong> Purba Bardhaman</div>
-          <div><strong>Crop:</strong> Aman Paddy (2.5 Acres)</div>
+          <div><strong>Farmer:</strong> <span id="cardFarmerName">Farmer (Guest)</span></div>
+          <div><strong>Date:</strong> <span id="cardDate">Today</span></div>
+          <div><strong>District:</strong> <span id="cardDistrict">West Bengal</span></div>
+          <div><strong>Crop:</strong> <span id="cardCropLand">Paddy (2.5 Acres)</span></div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 p-3 bg-white rounded-xl border border-emerald-200 text-xs mb-3">
           <div>
             <span class="text-slate-500 block">Soil pH:</span>
-            <span class="text-lg font-black text-red-600">5.2 (Acidic ⚠️)</span>
+            <span id="cardPhVal" class="text-lg font-black text-red-600">5.2 (Acidic ⚠️)</span>
           </div>
           <div>
             <span class="text-slate-500 block">Soil Moisture:</span>
-            <span class="text-lg font-black text-slate-800">24% (Low 💧)</span>
+            <span id="cardMoistVal" class="text-lg font-black text-slate-800">24% (Low 💧)</span>
           </div>
         </div>
 
         <div class="bg-white p-3 rounded-xl border border-emerald-200 text-xs text-slate-700 space-y-1">
           <strong class="text-slate-900 block">Agronomic Recommendations:</strong>
-          <div>• Apply <strong>300 kg Agricultural Lime/Dolomite</strong> per acre before tilling.</div>
-          <div>• Urgent irrigation (2-3 inches) required within 24 hours.</div>
-          <div>• Matched Subsidy: <strong>50% Subsidy on Agricultural Lime</strong> (Ref: WB/MEM/8941).</div>
+          <div id="cardRecLime">• Apply <strong>Agricultural Lime/Dolomite</strong> as per soil reading.</div>
+          <div id="cardRecMoist">• Moisture management based on telemetry.</div>
+          <div id="cardRecSubsidy">• Matched Subsidy: <strong>50% Subsidy on Agricultural Lime</strong> (Soil Health Mission).</div>
         </div>
       </div>
 
@@ -683,37 +696,63 @@
         <button onclick="document.getElementById('profileEditModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700">✕</button>
       </div>
 
-      <form id="farmerProfileForm" class="space-y-4 text-xs">
+      <!-- First-time welcome notice -->
+      <div id="profileModalNotice" class="hidden mb-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-medium">
+        👋 <strong>Welcome, <span id="modalWelcomeName">Farmer</span>!</strong><br>
+        Please fill in your farm acreage and location below so KrishiSync can customize fertilizer dosage, advisories, and government subsidies for your land.
+      </div>
+
+      <form id="farmerProfileForm" class="space-y-3.5 text-xs">
         <div>
-          <label class="font-bold text-slate-700 block mb-1" data-i18n="farmerName">Farmer Name</label>
-          <input id="inputName" type="text" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <label class="font-bold text-slate-700 block mb-1">Farmer Name (from Google account)</label>
+          <input id="inputName" type="text" placeholder="Your Full Name" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
         </div>
 
-        <div>
-          <label class="font-bold text-slate-700 block mb-1" data-i18n="landSize">Land Size (Acres)</label>
-          <input id="inputLand" type="number" step="0.1" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Field Quantity (Acres)</label>
+            <input id="inputLand" type="number" step="0.1" min="0.1" placeholder="e.g. 2.5" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Kisan ID / Voter ID</label>
+            <input id="inputKisanId" type="text" placeholder="e.g. WB-2026-9042" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
         </div>
 
-        <div>
-          <label class="font-bold text-slate-700 block mb-1" data-i18n="cropType">Primary Crop</label>
-          <select id="inputCrop" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-            <option value="Paddy">Paddy / ধান</option>
-            <option value="Potato">Potato / আলু</option>
-            <option value="Jute">Jute / পাট</option>
-            <option value="Mustard">Mustard / সরিষা</option>
-            <option value="Vegetables">Vegetables / শাকসবজি</option>
-            <option value="Wheat">Wheat / গম</option>
-          </select>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="font-bold text-slate-700 block mb-1" data-i18n="cropType">Primary Crop</label>
+            <select id="inputCrop" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="Paddy">Paddy / আমন ধান</option>
+              <option value="Potato">Potato / আলু</option>
+              <option value="Jute">Jute / পাট</option>
+              <option value="Mustard">Mustard / সরিষা</option>
+              <option value="Vegetables">Vegetables / শাকসবজি</option>
+              <option value="Wheat">Wheat / গম</option>
+            </select>
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Contact Phone</label>
+            <input id="inputPhone" type="tel" placeholder="+91 98321..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
         </div>
 
-        <div>
-          <label class="font-bold text-slate-700 block mb-1" data-i18n="district">District / Block</label>
-          <input id="inputDistrict" type="text" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">District / District HQ</label>
+            <input id="inputDistrict" type="text" placeholder="e.g. Purba Bardhaman" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Village & Block</label>
+            <input id="inputVillage" type="text" placeholder="e.g. Memari-I, Radhakantapur" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
         </div>
 
-        <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow transition-all" data-i18n="saveProfile">
-          Update Profile
-        </button>
+        <div class="pt-2">
+          <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow-md transition-all active:scale-95 text-xs md:text-sm">
+            Save Farm Profile & Update Advisory 💾
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -834,7 +873,7 @@
 
   <!-- Self-Contained Firebase Service (Loads directly from Google CDN - Zero local file dependencies) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { 
       getAuth, 
       GoogleAuthProvider, 
@@ -889,14 +928,8 @@
           config = this.defaultConfig;
         }
 
-        if (!config.apiKey) {
-          console.warn("[Firebase] No API key found yet. Please enter keys in the setup modal.");
-          this.isInitialized = false;
-          return false;
-        }
-
         try {
-          this.app = initializeApp(config);
+          this.app = getApps().length ? getApp() : initializeApp(config);
           this.auth = getAuth(this.app);
           this.db = getFirestore(this.app);
           this.isInitialized = true;
@@ -931,7 +964,7 @@
 
       async loginWithGoogle() {
         if (!this.isInitialized || !this.auth) {
-          throw new Error("Please enter your Firebase config keys first by clicking the 🔥 icon.");
+          this.init();
         }
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: "select_account" });
@@ -966,35 +999,97 @@
         }
       },
 
+      // Save user profile to /users/{uid} in Firestore
+      async saveUserProfile(profileData) {
+        if (!this.db || !this.currentUser) return false;
+        try {
+          const userRef = doc(this.db, "users", this.currentUser.uid);
+          await setDoc(userRef, {
+            ...profileData,
+            uid: this.currentUser.uid,
+            email: this.currentUser.email || '',
+            photoURL: this.currentUser.photoURL || '',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+          return true;
+        } catch (e) {
+          console.error("[Firebase] Error saving user profile:", e);
+          return false;
+        }
+      },
+
+      // Load user profile from /users/{uid} in Firestore
+      async getUserProfile() {
+        if (!this.db || !this.currentUser) return null;
+        try {
+          const userRef = doc(this.db, "users", this.currentUser.uid);
+          const snap = await getDoc(userRef);
+          if (snap.exists()) {
+            return snap.data();
+          }
+        } catch (e) {
+          console.warn("[Firebase] Could not get user profile:", e);
+        }
+        return null;
+      },
+
+      // Save soil test reading to /users/{uid}/readings AND /public_telemetry
       async saveSoilReading(reading) {
         if (!this.db || !this.currentUser) return null;
+        
+        // 1. Save to private user collection
         const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
-        return await addDoc(readingsCol, {
+        const docRef = await addDoc(readingsCol, {
           ph: Number(reading.ph),
           moisture: Number(reading.moisture),
           healthScore: Number(reading.healthScore),
           plot: reading.plot || "Main Field",
           status: reading.status || "Tested",
+          battery: reading.battery || 90,
           timestamp: serverTimestamp(),
           farmerUid: this.currentUser.uid
         });
+
+        // 2. Push anonymized record to /public_telemetry for the Government Village Heatmap
+        try {
+          const publicCol = collection(this.db, "public_telemetry");
+          await addDoc(publicCol, {
+            ph: Number(reading.ph),
+            moisture: Number(reading.moisture),
+            healthScore: Number(reading.healthScore),
+            district: reading.district || "Purba Bardhaman",
+            block: reading.block || "Memari-I",
+            village: reading.village || "Radhakantapur",
+            timestamp: serverTimestamp()
+          });
+        } catch (e) {
+          console.warn("[Firebase] Could not push to public_telemetry:", e);
+        }
+
+        return docRef.id;
       },
 
-      async getUserReadings() {
+      // Fetch past soil tests for current user
+      async getUserReadings(maxResults = 20) {
         if (!this.db || !this.currentUser) return [];
-        const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
-        const q = query(readingsCol, orderBy("timestamp", "desc"), limit(20));
-        const snap = await getDocs(q);
-        const results = [];
-        snap.forEach(doc => {
-          const data = doc.data();
-          results.push({
-            id: doc.id,
-            ...data,
-            date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString("en-IN") : "Just now"
+        try {
+          const readingsCol = collection(this.db, "users", this.currentUser.uid, "readings");
+          const q = query(readingsCol, orderBy("timestamp", "desc"), limit(maxResults));
+          const snap = await getDocs(q);
+          const results = [];
+          snap.forEach(doc => {
+            const data = doc.data();
+            results.push({
+              id: doc.id,
+              ...data,
+              date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString("en-IN") : "Just now"
+            });
           });
-        });
-        return results;
+          return results;
+        } catch (e) {
+          console.warn("[Firebase] Could not get user readings:", e);
+          return [];
+        }
       }
     };
 
