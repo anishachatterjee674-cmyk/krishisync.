@@ -865,14 +865,15 @@
       currentUser: null,
       isInitialized: false,
 
-      // Default fallback config (Allows friends and judges to sign in without entering keys)
+      // Default production config for all users, friends, and hackathon judges
       defaultConfig: {
-        apiKey: "",
+        apiKey: "AIzaSyDWSTIL7j8Lfqogae_tE5Ix0k2fxt-eRgc",
         authDomain: "krishi-sync.firebaseapp.com",
         projectId: "krishi-sync",
-        storageBucket: "krishi-sync.appspot.com",
+        storageBucket: "krishi-sync.firebasestorage.app",
         messagingSenderId: "1074546123998",
-        appId: ""
+        appId: "1:1074546123998:web:672620bbf4382fead98e4f",
+        measurementId: "G-W6563GPZ8T"
       },
 
       init(customConfig = null) {
